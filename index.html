@@ -147,85 +147,164 @@
     <button id="btnSalida" class="btn red" onclick="sendMovement('SALIDA')" disabled>SALIDA</button>
   </div>
 
-  <script>
-    // URL /exec (Apps Script)
-    const API_URL = "https://script.google.com/macros/s/AKfycbwk-o8aVh4Ao6MuWbYHpt_gLqlHiNvpE4grhQtiDCAI3nlVj57vNc2vkIMXXbFVROMbig/exec";
+<script>
+  const API_URL = "https://script.google.com/macros/s/AKfycbwk-o8aVh4Ao6MuWbYHpt_gLqlHiNvpE4grhQtiDCAI3nlVj57vNc2vkIMXXbFVROMbig/exec";
 
-    const elCodigo = document.getElementById("codigo");
-    const elUbic = document.getElementById("ubicacion");
-    const elNotas = document.getElementById("notas");
-    const btnEntrada = document.getElementById("btnEntrada");
-    const btnSalida = document.getElementById("btnSalida");
+  const elCodigo = document.getElementById("codigo");
+  const elUbic = document.getElementById("ubicacion");
+  const elNotas = document.getElementById("notas");
+  const btnEntrada = document.getElementById("btnEntrada");
+  const btnSalida = document.getElementById("btnSalida");
 
-    function refreshButtons(){
-      const codigo = elCodigo.value.trim();
-      const ubic = elUbic.value.trim();
+  // UI: feedback no bloqueante
+  const toast = document.createElement("div");
+  toast.style.cssText = `
+    position:fixed; left:50%; bottom:18px; transform:translateX(-50%);
+    padding:10px 14px; border:1px solid rgba(0,0,0,.2); border-radius:999px;
+    background:white; box-shadow:0 8px 20px rgba(0,0,0,.15);
+    font-weight:800; font-size:13px; opacity:0; transition:opacity .15s ease;
+    z-index:9999;
+  `;
+  document.body.appendChild(toast);
 
-      // Reglas:
-      // ENTRADA => requiere código + ubicación
-      btnEntrada.disabled = !(codigo && ubic);
+  function showToast(msg){
+    toast.textContent = msg;
+    toast.style.opacity = "1";
+    clearTimeout(showToast._t);
+    showToast._t = setTimeout(() => (toast.style.opacity = "0"), 1200);
+  }
 
-      // SALIDA => requiere solo código
-      btnSalida.disabled = !codigo;
+  function refreshButtons(){
+    const codigo = elCodigo.value.trim();
+    const ubic = elUbic.value.trim();
+    btnEntrada.disabled = !(codigo && ubic);
+    btnSalida.disabled = !codigo;
+  }
+
+  elCodigo.addEventListener("input", refreshButtons);
+  elUbic.addEventListener("input", refreshButtons);
+  elNotas.addEventListener("input", refreshButtons);
+  refreshButtons();
+
+  // Cola local (persistente): si te quedas sin cobertura, no pierdes movimientos
+  const QKEY = "movimientos_queue_v1";
+
+  function loadQueue(){
+    try { return JSON.parse(localStorage.getItem(QKEY) || "[]"); }
+    catch { return []; }
+  }
+  function saveQueue(q){
+    localStorage.setItem(QKEY, JSON.stringify(q));
+  }
+  function enqueue(item){
+    const q = loadQueue();
+    q.push(item);
+    saveQueue(q);
+    return q.length;
+  }
+  function dequeue(){
+    const q = loadQueue();
+    const item = q.shift();
+    saveQueue(q);
+    return item;
+  }
+  function queueLength(){
+    return loadQueue().length;
+  }
+
+  let sending = false;
+
+  async function sendOne(item){
+    const url = new URL(API_URL);
+    url.searchParams.set("tipo", item.tipo);
+    url.searchParams.set("codigo", item.codigo);
+    url.searchParams.set("ubicacion", item.ubicacion);
+    url.searchParams.set("notas", item.notas);
+    url.searchParams.set("ts_client", item.ts_client);
+    url.searchParams.set("id", item.id); // id interno (útil si luego quieres deduplicar)
+
+    // GET -> evita CORS
+    const res = await fetch(url.toString(), { method:"GET", cache:"no-store" });
+    const data = await res.json().catch(()=> ({}));
+    if(!(res.ok && data.ok)) throw new Error("API error");
+  }
+
+  async function flushQueue(){
+    if(sending) return;
+    sending = true;
+
+    try{
+      while(queueLength() > 0){
+        const item = loadQueue()[0]; // peek
+        try{
+          await sendOne(item);
+          dequeue(); // solo quitamos si se envió bien
+          showToast(`Enviado ✓ (pendientes: ${queueLength()})`);
+        }catch(e){
+          // Si falla, paramos y reintentamos más tarde
+          showToast(`Pendiente ⏳ (pendientes: ${queueLength()})`);
+          break;
+        }
+      }
+    } finally {
+      sending = false;
+    }
+  }
+
+  // Reintentos automáticos
+  window.addEventListener("online", flushQueue);
+  setInterval(flushQueue, 4000); // cada 4s intenta vaciar si hay pendientes
+
+  function makeId(){
+    return (Date.now().toString(36) + Math.random().toString(36).slice(2,8)).toUpperCase();
+  }
+
+  async function sendMovement(tipo){
+    const codigo = elCodigo.value.trim();
+    const ubicacion = elUbic.value.trim();
+    const notas = elNotas.value.trim();
+
+    if(!codigo){
+      showToast("Falta CÓDIGO");
+      return;
+    }
+    if(tipo === "ENTRADA" && !ubicacion){
+      showToast("Falta UBICACIÓN");
+      return;
     }
 
-    elCodigo.addEventListener("input", refreshButtons);
-    elUbic.addEventListener("input", refreshButtons);
-    elNotas.addEventListener("input", refreshButtons);
+    const item = {
+      id: makeId(),
+      tipo,
+      codigo,
+      ubicacion,
+      notas,
+      ts_client: new Date().toISOString()
+    };
 
-    // estado inicial
+    // 1) Encola (instantáneo)
+    const pending = enqueue(item);
+
+    // 2) Limpieza inmediata para seguir leyendo
+    elCodigo.value = "";
+    elNotas.value = "";
+    elUbic.value = "";
+    elCodigo.focus();
     refreshButtons();
 
-    async function sendMovement(tipo){
-      const codigo = elCodigo.value.trim();
-      const ubicacion = elUbic.value.trim();
-      const notas = elNotas.value.trim();
+    // 3) Feedback no bloqueante
+    showToast(`Guardado local ✓ (pendientes: ${pending})`);
 
-      // Validaciones (por seguridad, además del disabled)
-      if(!codigo){
-        alert("Introduce un CÓDIGO.");
-        return;
-      }
-      if(tipo === "ENTRADA" && !ubicacion){
-        alert("Para ENTRADA, la UBICACIÓN es obligatoria.");
-        return;
-      }
-      // Para SALIDA, ubicación puede ir vacía (o aunque esté, la enviamos sin problema)
+    // 4) Intento de envío en background
+    flushQueue();
+  }
 
-      // Envío por GET (evita CORS con GitHub Pages)
-      const url = new URL(API_URL);
-      url.searchParams.set("tipo", tipo);
-      url.searchParams.set("codigo", codigo);
-      url.searchParams.set("ubicacion", ubicacion); // para SALIDA puede ir vacío
-      url.searchParams.set("notas", notas);
-      url.searchParams.set("ts_client", new Date().toISOString());
+  // Exponer función al HTML (onclick)
+  window.sendMovement = sendMovement;
 
-      try{
-        const res = await fetch(url.toString(), { method: "GET" });
-        const data = await res.json().catch(() => ({}));
+  // Al abrir la app, intenta enviar lo que hubiera pendiente
+  flushQueue();
+</script>
 
-        if(res.ok && data.ok){
-          alert("Movimiento registrado");
-
-          // Limpieza: código siempre; notas siempre
-          elCodigo.value = "";
-          elNotas.value = "";
-
-          // Ubicación: yo la dejaría para ENTRADAS repetitivas (más rápido)
-          // Si prefieres limpiarla también, descomenta:
-          // elUbic.value = "";
-
-          elCodigo.focus();
-          refreshButtons();
-        }else{
-          alert("Error guardando movimiento");
-          console.error("Respuesta API:", data);
-        }
-      }catch(e){
-        alert("Error de conexión con la base de datos");
-        console.error(e);
-      }
-    }
-  </script>
 </body>
 </html>
