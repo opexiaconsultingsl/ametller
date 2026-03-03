@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Control Stock</title>
+
+  <style>
+    :root{
+      --ink:#0e1b2a;
+      --green:#7fe28f;
+      --red:#e69095;
+      --stroke:#0e1b2a;
+      --radius:16px;
+      --shadow:0 8px 20px rgba(0,0,0,.15);
+    }
+
+    *{
+      box-sizing:border-box;
+      font-family: system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
+    }
+
+    body{
+      margin:0;
+      background:#fff;
+      display:flex;
+      justify-content:center;
+      padding:24px 14px;
+      color:var(--ink);
+    }
+
+    .app{
+      width:min(430px,100%);
+    }
+
+    .header{
+      display:flex;
+      align-items:center;
+      gap:14px;
+      margin-bottom:28px;
+    }
+
+    .logo{
+      width:60px;
+      height:60px;
+    }
+
+    .logo img{
+      width:100%;
+      height:100%;
+      object-fit:contain;
+    }
+
+    h1{
+      margin:0;
+      font-size:30px;
+      letter-spacing:.5px;
+    }
+
+    .field{
+      margin-bottom:18px;
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+    }
+
+    label{
+      font-size:13px;
+      font-weight:600;
+      opacity:.7;
+    }
+
+    input, textarea{
+      padding:14px;
+      border-radius:12px;
+      border:1px solid rgba(0,0,0,.25);
+      font-size:16px;
+      outline:none;
+    }
+
+    textarea{
+      min-height:70px;
+      resize:vertical;
+    }
+
+    .btn{
+      width:100%;
+      padding:20px;
+      border-radius:var(--radius);
+      border:2px solid var(--stroke);
+      font-weight:800;
+      font-size:26px;
+      letter-spacing:.5px;
+      cursor:pointer;
+      box-shadow:var(--shadow);
+      margin-top:16px;
+    }
+
+    .green{
+      background:var(--green);
+      color:white; /* <-- ENTRADA en blanco */
+    }
+
+    .red{
+      background:var(--red);
+      color:white;
+      margin-top:28px; /* <-- Más separación con ENTRADA */
+    }
+
+  </style>
+</head>
+
+<body>
+  <div class="app">
+
+    <div class="header">
+      <div class="logo">
+        <img src="assets/logo-ametller.png" alt="Ametller">
+      </div>
+      <h1>CONTROL STOCK</h1>
+    </div>
+
+    <div class="field">
+      <label>CÓDIGO</label>
+      <input id="codigo" placeholder="Introduce código..." autocomplete="off">
+    </div>
+
+    <div class="field">
+      <label>UBICACIÓN</label>
+      <input id="ubicacion" placeholder="Ej: Almacén A - Estantería 3" autocomplete="off">
+    </div>
+
+    <div class="field">
+      <label>NOTAS</label>
+      <textarea id="notas" placeholder="Observaciones..."></textarea>
+    </div>
+
+    <button class="btn green" onclick="sendMovement('ENTRADA')">ENTRADA</button>
+    <button class="btn red" onclick="sendMovement('SALIDA')">SALIDA</button>
+
+  </div>
+
+<script>
+
+  const API_URL = "PEGA_AQUI_TU_URL_EXEC";
+
+  async function sendMovement(tipo){
+
+    const codigo = document.getElementById("codigo").value.trim();
+    const ubicacion = document.getElementById("ubicacion").value.trim();
+    const notas = document.getElementById("notas").value.trim();
+
+    if(!codigo){
+      alert("Introduce un código.");
+      return;
+    }
+
+    const payload = {
+      tipo: tipo,
+      codigo: codigo,
+      ubicacion: ubicacion,
+      notas: notas,
+      ts_client: new Date().toISOString()
+    };
+
+    try{
+      const res = await fetch(API_URL,{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify(payload)
+      });
+
+      const data = await res.json();
+
+      if(data.ok){
+        alert("Movimiento registrado");
+        document.getElementById("codigo").value="";
+        document.getElementById("notas").value="";
+        document.getElementById("codigo").focus();
+      }else{
+        alert("Error guardando movimiento");
+      }
+
+    }catch(e){
+      alert("Error de conexión con la base de datos");
+    }
+  }
+
+</script>
+
+</body>
+</html>
