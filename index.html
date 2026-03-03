@@ -147,6 +147,8 @@
     <button id="btnSalida" class="btn red" onclick="sendMovement('SALIDA')" disabled>SALIDA</button>
   </div>
 
+
+
 <script>
   const API_URL = "https://script.google.com/macros/s/AKfycbwk-o8aVh4Ao6MuWbYHpt_gLqlHiNvpE4grhQtiDCAI3nlVj57vNc2vkIMXXbFVROMbig/exec";
 
@@ -174,11 +176,28 @@
     showToast._t = setTimeout(() => (toast.style.opacity = "0"), 1200);
   }
 
+  // Validaciones:
+  // - CÓDIGO: 10 a 14 dígitos numéricos
+  // - UBICACIÓN: exactamente 4 dígitos numéricos (solo obligatoria para ENTRADA)
   function refreshButtons(){
     const codigo = elCodigo.value.trim();
     const ubic = elUbic.value.trim();
-    btnEntrada.disabled = !(codigo && ubic);
-    btnSalida.disabled = !codigo;
+
+    const errorCodigo = document.getElementById("codigoError");
+
+    const codigoValido = /^\d{10,14}$/.test(codigo);
+    const ubicValida = /^\d{4}$/.test(ubic);
+
+    // Solo mostramos error del código
+    if(errorCodigo){
+      errorCodigo.style.display = (codigo && !codigoValido) ? "block" : "none";
+    }
+
+    // ENTRADA requiere ambos válidos
+    btnEntrada.disabled = !(codigoValido && ubicValida);
+
+    // SALIDA requiere solo código válido
+    btnSalida.disabled = !codigoValido;
   }
 
   elCodigo.addEventListener("input", refreshButtons);
@@ -186,7 +205,7 @@
   elNotas.addEventListener("input", refreshButtons);
   refreshButtons();
 
-  // Cola local (persistente): si te quedas sin cobertura, no pierdes movimientos
+  // Cola local (persistente)
   const QKEY = "movimientos_queue_v1";
 
   function loadQueue(){
@@ -221,9 +240,8 @@
     url.searchParams.set("ubicacion", item.ubicacion);
     url.searchParams.set("notas", item.notas);
     url.searchParams.set("ts_client", item.ts_client);
-    url.searchParams.set("id", item.id); // id interno (útil si luego quieres deduplicar)
+    url.searchParams.set("id", item.id);
 
-    // GET -> evita CORS
     const res = await fetch(url.toString(), { method:"GET", cache:"no-store" });
     const data = await res.json().catch(()=> ({}));
     if(!(res.ok && data.ok)) throw new Error("API error");
@@ -238,10 +256,9 @@
         const item = loadQueue()[0]; // peek
         try{
           await sendOne(item);
-          dequeue(); // solo quitamos si se envió bien
+          dequeue();
           showToast(`Enviado ✓ (pendientes: ${queueLength()})`);
         }catch(e){
-          // Si falla, paramos y reintentamos más tarde
           showToast(`Pendiente ⏳ (pendientes: ${queueLength()})`);
           break;
         }
@@ -251,9 +268,8 @@
     }
   }
 
-  // Reintentos automáticos
   window.addEventListener("online", flushQueue);
-  setInterval(flushQueue, 4000); // cada 4s intenta vaciar si hay pendientes
+  setInterval(flushQueue, 4000);
 
   function makeId(){
     return (Date.now().toString(36) + Math.random().toString(36).slice(2,8)).toUpperCase();
@@ -264,12 +280,13 @@
     const ubicacion = elUbic.value.trim();
     const notas = elNotas.value.trim();
 
-    if(!codigo){
-      showToast("Falta CÓDIGO");
+    // Validación final (además del disabled)
+    if(!/^\d{10,14}$/.test(codigo)){
+      showToast("Código inválido (10-14 dígitos)");
       return;
     }
-    if(tipo === "ENTRADA" && !ubicacion){
-      showToast("Falta UBICACIÓN");
+    if(tipo === "ENTRADA" && !/^\d{4}$/.test(ubicacion)){
+      showToast("Ubicación inválida (4 dígitos)");
       return;
     }
 
@@ -282,29 +299,30 @@
       ts_client: new Date().toISOString()
     };
 
-    // 1) Encola (instantáneo)
+    // Encola (instantáneo)
     const pending = enqueue(item);
 
-    // 2) Limpieza inmediata para seguir leyendo
+    // Limpieza inmediata para seguir leyendo (incluye ubicación)
     elCodigo.value = "";
     elNotas.value = "";
     elUbic.value = "";
     elCodigo.focus();
     refreshButtons();
 
-    // 3) Feedback no bloqueante
     showToast(`Guardado local ✓ (pendientes: ${pending})`);
 
-    // 4) Intento de envío en background
+    // Envío en background
     flushQueue();
   }
 
-  // Exponer función al HTML (onclick)
+  // Exponer para onclick del HTML
   window.sendMovement = sendMovement;
 
-  // Al abrir la app, intenta enviar lo que hubiera pendiente
+  // Al abrir, intenta enviar pendientes
   flushQueue();
 </script>
+
+  
 
 </body>
 </html>
