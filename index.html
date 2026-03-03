@@ -149,6 +149,7 @@
 
 
 
+
 <script>
   const API_URL = "https://script.google.com/macros/s/AKfycbwk-o8aVh4Ao6MuWbYHpt_gLqlHiNvpE4grhQtiDCAI3nlVj57vNc2vkIMXXbFVROMbig/exec";
 
@@ -158,7 +159,7 @@
   const btnEntrada = document.getElementById("btnEntrada");
   const btnSalida = document.getElementById("btnSalida");
 
-  // UI: feedback no bloqueante
+  // Toast no bloqueante
   const toast = document.createElement("div");
   toast.style.cssText = `
     position:fixed; left:50%; bottom:18px; transform:translateX(-50%);
@@ -176,9 +177,9 @@
     showToast._t = setTimeout(() => (toast.style.opacity = "0"), 1200);
   }
 
-  // Validaciones:
-  // - CÓDIGO: 10 a 14 dígitos numéricos
-  // - UBICACIÓN: exactamente 4 dígitos numéricos (solo obligatoria para ENTRADA)
+  // VALIDACIONES
+  // Código: 10–14 dígitos numéricos
+  // Ubicación: exactamente 4 caracteres alfanuméricos
   function refreshButtons(){
     const codigo = elCodigo.value.trim();
     const ubic = elUbic.value.trim();
@@ -186,17 +187,13 @@
     const errorCodigo = document.getElementById("codigoError");
 
     const codigoValido = /^\d{10,14}$/.test(codigo);
-    const ubicValida = /^\d{4}$/.test(ubic);
+    const ubicValida = /^[A-Za-z0-9]{4}$/.test(ubic);
 
-    // Solo mostramos error del código
     if(errorCodigo){
       errorCodigo.style.display = (codigo && !codigoValido) ? "block" : "none";
     }
 
-    // ENTRADA requiere ambos válidos
     btnEntrada.disabled = !(codigoValido && ubicValida);
-
-    // SALIDA requiere solo código válido
     btnSalida.disabled = !codigoValido;
   }
 
@@ -205,7 +202,7 @@
   elNotas.addEventListener("input", refreshButtons);
   refreshButtons();
 
-  // Cola local (persistente)
+  // Cola local
   const QKEY = "movimientos_queue_v1";
 
   function loadQueue(){
@@ -253,7 +250,7 @@
 
     try{
       while(queueLength() > 0){
-        const item = loadQueue()[0]; // peek
+        const item = loadQueue()[0];
         try{
           await sendOne(item);
           dequeue();
@@ -280,13 +277,13 @@
     const ubicacion = elUbic.value.trim();
     const notas = elNotas.value.trim();
 
-    // Validación final (además del disabled)
     if(!/^\d{10,14}$/.test(codigo)){
       showToast("Código inválido (10-14 dígitos)");
       return;
     }
-    if(tipo === "ENTRADA" && !/^\d{4}$/.test(ubicacion)){
-      showToast("Ubicación inválida (4 dígitos)");
+
+    if(tipo === "ENTRADA" && !/^[A-Za-z0-9]{4}$/.test(ubicacion)){
+      showToast("Ubicación inválida (4 caracteres alfanuméricos)");
       return;
     }
 
@@ -299,10 +296,8 @@
       ts_client: new Date().toISOString()
     };
 
-    // Encola (instantáneo)
     const pending = enqueue(item);
 
-    // Limpieza inmediata para seguir leyendo (incluye ubicación)
     elCodigo.value = "";
     elNotas.value = "";
     elUbic.value = "";
@@ -311,18 +306,14 @@
 
     showToast(`Guardado local ✓ (pendientes: ${pending})`);
 
-    // Envío en background
     flushQueue();
   }
 
-  // Exponer para onclick del HTML
   window.sendMovement = sendMovement;
-
-  // Al abrir, intenta enviar pendientes
   flushQueue();
 </script>
 
-  
 
+  
 </body>
 </html>
