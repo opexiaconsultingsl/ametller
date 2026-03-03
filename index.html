@@ -55,7 +55,7 @@
       margin:0;
       font-size:30px;
       letter-spacing:.5px;
-      white-space:nowrap; /* CONTROL STOCK en una sola fila */
+      white-space:nowrap;
     }
 
     .field{
@@ -95,17 +95,26 @@
       cursor:pointer;
       box-shadow:var(--shadow);
       margin-top:16px;
+      transition: opacity .15s ease, filter .15s ease;
     }
 
     .green{
       background:var(--green);
-      color:#fff; /* ENTRADA en blanco */
+      color:#fff;
     }
 
     .red{
       background:var(--red);
       color:#fff;
-      margin-top:28px; /* más separación entre ENTRADA y SALIDA */
+      margin-top:28px;
+    }
+
+    /* Estado deshabilitado */
+    .btn:disabled{
+      opacity:.45;
+      cursor:not-allowed;
+      filter: grayscale(30%);
+      box-shadow:none;
     }
   </style>
 </head>
@@ -114,71 +123,104 @@
   <div class="app">
     <div class="header">
       <div class="logo">
-        <img src="Ametller.png">
+        <img src="Ametller.png" alt="Ametller">
       </div>
       <h1>CONTROL STOCK</h1>
     </div>
 
     <div class="field">
       <label>CÓDIGO</label>
-      <input id="codigo" placeholder="Introduce código..." autocomplete="off">
+      <input id="codigo" placeholder="Lee código de barras..." autocomplete="off" />
     </div>
 
     <div class="field">
       <label>UBICACIÓN</label>
-      <input id="ubicacion" placeholder="Ej: Almacén A - Estantería 3" autocomplete="off">
+      <input id="ubicacion" placeholder="Lee código de ubicación" autocomplete="off" />
     </div>
 
     <div class="field">
-      <label>NOTAS</label>
+      <label>NOTAS (opcional)</label>
       <textarea id="notas" placeholder="Observaciones..."></textarea>
     </div>
 
-    <button class="btn green" onclick="sendMovement('ENTRADA')">ENTRADA</button>
-    <button class="btn red" onclick="sendMovement('SALIDA')">SALIDA</button>
+    <button id="btnEntrada" class="btn green" onclick="sendMovement('ENTRADA')" disabled>ENTRADA</button>
+    <button id="btnSalida" class="btn red" onclick="sendMovement('SALIDA')" disabled>SALIDA</button>
   </div>
 
   <script>
-    // ✅ Tu URL /exec ya puesta
-    const API_URL = "https://script.google.com/macros/s/AKfycbw7GEVYNRMdSAF3S5ReGXmwKKLsODGUHeRVj4YE4sCr2xRENDJBdLA-cnfzRdZh2nEN/exec";
+    // URL /exec (Apps Script)
+    const API_URL = "https://script.google.com/macros/s/AKfycbwk-o8aVh4Ao6MuWbYHpt_gLqlHiNvpE4grhQtiDCAI3nlVj57vNc2vkIMXXbFVROMbig/exec";
+
+    const elCodigo = document.getElementById("codigo");
+    const elUbic = document.getElementById("ubicacion");
+    const elNotas = document.getElementById("notas");
+    const btnEntrada = document.getElementById("btnEntrada");
+    const btnSalida = document.getElementById("btnSalida");
+
+    function refreshButtons(){
+      const codigo = elCodigo.value.trim();
+      const ubic = elUbic.value.trim();
+
+      // Reglas:
+      // ENTRADA => requiere código + ubicación
+      btnEntrada.disabled = !(codigo && ubic);
+
+      // SALIDA => requiere solo código
+      btnSalida.disabled = !codigo;
+    }
+
+    elCodigo.addEventListener("input", refreshButtons);
+    elUbic.addEventListener("input", refreshButtons);
+    elNotas.addEventListener("input", refreshButtons);
+
+    // estado inicial
+    refreshButtons();
 
     async function sendMovement(tipo){
-      const codigo = document.getElementById("codigo").value.trim();
-      const ubicacion = document.getElementById("ubicacion").value.trim();
-      const notas = document.getElementById("notas").value.trim();
+      const codigo = elCodigo.value.trim();
+      const ubicacion = elUbic.value.trim();
+      const notas = elNotas.value.trim();
 
+      // Validaciones (por seguridad, además del disabled)
       if(!codigo){
-        alert("Introduce un código.");
+        alert("Introduce un CÓDIGO.");
         return;
       }
+      if(tipo === "ENTRADA" && !ubicacion){
+        alert("Para ENTRADA, la UBICACIÓN es obligatoria.");
+        return;
+      }
+      // Para SALIDA, ubicación puede ir vacía (o aunque esté, la enviamos sin problema)
 
-      const payload = {
-        tipo,
-        codigo,
-        ubicacion,
-        notas,
-        ts_client: new Date().toISOString()
-      };
+      // Envío por GET (evita CORS con GitHub Pages)
+      const url = new URL(API_URL);
+      url.searchParams.set("tipo", tipo);
+      url.searchParams.set("codigo", codigo);
+      url.searchParams.set("ubicacion", ubicacion); // para SALIDA puede ir vacío
+      url.searchParams.set("notas", notas);
+      url.searchParams.set("ts_client", new Date().toISOString());
 
       try{
-        const res = await fetch(API_URL,{
-          method:"POST",
-          headers:{"Content-Type":"application/json"},
-          body:JSON.stringify(payload)
-        });
-
+        const res = await fetch(url.toString(), { method: "GET" });
         const data = await res.json().catch(() => ({}));
 
         if(res.ok && data.ok){
           alert("Movimiento registrado");
-          document.getElementById("codigo").value = "";
-          document.getElementById("notas").value = "";
-          document.getElementById("codigo").focus();
+
+          // Limpieza: código siempre; notas siempre
+          elCodigo.value = "";
+          elNotas.value = "";
+
+          // Ubicación: yo la dejaría para ENTRADAS repetitivas (más rápido)
+          // Si prefieres limpiarla también, descomenta:
+          // elUbic.value = "";
+
+          elCodigo.focus();
+          refreshButtons();
         }else{
           alert("Error guardando movimiento");
           console.error("Respuesta API:", data);
         }
-
       }catch(e){
         alert("Error de conexión con la base de datos");
         console.error(e);
