@@ -8,8 +8,13 @@
   <style>
     :root{
       --ink:#0e1b2a;
+
       --green:#7fe28f;
+      --green-soft:#f4fdf6;
+
       --red:#e69095;
+      --red-soft:#fdf4f4;
+
       --stroke:#0e1b2a;
       --radius:16px;
       --shadow:0 8px 20px rgba(0,0,0,.15);
@@ -93,27 +98,35 @@
       font-size:26px;
       letter-spacing:.5px;
       cursor:pointer;
-      box-shadow:var(--shadow);
       margin-top:16px;
-      transition: opacity .15s ease, filter .15s ease;
+      transition: background .2s ease, opacity .15s ease, filter .15s ease;
     }
 
     .green{
-      background:var(--green);
+      background:var(--green-soft);
       color:#fff;
     }
 
     .red{
-      background:var(--red);
+      background:var(--red-soft);
       color:#fff;
       margin-top:28px;
     }
 
-    /* Estado deshabilitado */
+    .btn:not(:disabled).green{
+      background:var(--green);
+      box-shadow:var(--shadow);
+    }
+
+    .btn:not(:disabled).red{
+      background:var(--red);
+      box-shadow:var(--shadow);
+    }
+
     .btn:disabled{
-      opacity:.45;
+      opacity:1;
       cursor:not-allowed;
-      filter: grayscale(30%);
+      filter:none;
       box-shadow:none;
     }
   </style>
@@ -130,7 +143,7 @@
 
     <div class="field">
       <label>CÓDIGO</label>
-      <input id="codigo" placeholder="Lee código de barras..." autocomplete="off" />
+      <input id="codigo" placeholder="Lee código de barras..." autocomplete="off" autofocus />
     </div>
 
     <div class="field">
@@ -147,173 +160,178 @@
     <button id="btnSalida" class="btn red" onclick="sendMovement('SALIDA')" disabled>SALIDA</button>
   </div>
 
+  <script>
+    const API_URL = "https://script.google.com/macros/s/AKfycbwk-o8aVh4Ao6MuWbYHpt_gLqlHiNvpE4grhQtiDCAI3nlVj57vNc2vkIMXXbFVROMbig/exec";
 
+    const elCodigo = document.getElementById("codigo");
+    const elUbic = document.getElementById("ubicacion");
+    const elNotas = document.getElementById("notas");
+    const btnEntrada = document.getElementById("btnEntrada");
+    const btnSalida = document.getElementById("btnSalida");
 
+    window.addEventListener("load", () => {
+      elCodigo.focus();
+    });
 
-<script>
-  const API_URL = "https://script.google.com/macros/s/AKfycbwk-o8aVh4Ao6MuWbYHpt_gLqlHiNvpE4grhQtiDCAI3nlVj57vNc2vkIMXXbFVROMbig/exec";
+    // Toast no bloqueante
+    const toast = document.createElement("div");
+    toast.style.cssText = `
+      position:fixed; left:50%; bottom:18px; transform:translateX(-50%);
+      padding:10px 14px; border:1px solid rgba(0,0,0,.2); border-radius:999px;
+      background:white; box-shadow:0 8px 20px rgba(0,0,0,.15);
+      font-weight:800; font-size:13px; opacity:0; transition:opacity .15s ease;
+      z-index:9999;
+    `;
+    document.body.appendChild(toast);
 
-  const elCodigo = document.getElementById("codigo");
-  const elUbic = document.getElementById("ubicacion");
-  const elNotas = document.getElementById("notas");
-  const btnEntrada = document.getElementById("btnEntrada");
-  const btnSalida = document.getElementById("btnSalida");
-
-  // Toast no bloqueante
-  const toast = document.createElement("div");
-  toast.style.cssText = `
-    position:fixed; left:50%; bottom:18px; transform:translateX(-50%);
-    padding:10px 14px; border:1px solid rgba(0,0,0,.2); border-radius:999px;
-    background:white; box-shadow:0 8px 20px rgba(0,0,0,.15);
-    font-weight:800; font-size:13px; opacity:0; transition:opacity .15s ease;
-    z-index:9999;
-  `;
-  document.body.appendChild(toast);
-
-  function showToast(msg){
-    toast.textContent = msg;
-    toast.style.opacity = "1";
-    clearTimeout(showToast._t);
-    showToast._t = setTimeout(() => (toast.style.opacity = "0"), 1200);
-  }
-
-  // VALIDACIONES
-  // Código: 10–14 dígitos numéricos
-  // Ubicación: exactamente 4 caracteres alfanuméricos
-  function refreshButtons(){
-    const codigo = elCodigo.value.trim();
-    const ubic = elUbic.value.trim();
-
-    const errorCodigo = document.getElementById("codigoError");
-
-    const codigoValido = /^\d{10,14}$/.test(codigo);
-    const ubicValida = /^[A-Za-z0-9]{4}$/.test(ubic);
-
-    if(errorCodigo){
-      errorCodigo.style.display = (codigo && !codigoValido) ? "block" : "none";
+    function showToast(msg){
+      toast.textContent = msg;
+      toast.style.opacity = "1";
+      clearTimeout(showToast._t);
+      showToast._t = setTimeout(() => (toast.style.opacity = "0"), 1200);
     }
 
-    btnEntrada.disabled = !(codigoValido && ubicValida);
-    btnSalida.disabled = !codigoValido;
-  }
+    // VALIDACIONES
+    // Código: 10–14 dígitos numéricos
+    // Ubicación: exactamente 4 caracteres alfanuméricos
+    function refreshButtons(){
+      const codigo = elCodigo.value.trim();
+      const ubic = elUbic.value.trim();
 
-  elCodigo.addEventListener("input", refreshButtons);
-  elUbic.addEventListener("input", refreshButtons);
-  elNotas.addEventListener("input", refreshButtons);
-  refreshButtons();
+      const errorCodigo = document.getElementById("codigoError");
 
-  // Cola local
-  const QKEY = "movimientos_queue_v1";
+      const codigoValido = /^\d{10,14}$/.test(codigo);
+      const ubicValida = /^[A-Za-z0-9]{4}$/.test(ubic);
 
-  function loadQueue(){
-    try { return JSON.parse(localStorage.getItem(QKEY) || "[]"); }
-    catch { return []; }
-  }
-  function saveQueue(q){
-    localStorage.setItem(QKEY, JSON.stringify(q));
-  }
-  function enqueue(item){
-    const q = loadQueue();
-    q.push(item);
-    saveQueue(q);
-    return q.length;
-  }
-  function dequeue(){
-    const q = loadQueue();
-    const item = q.shift();
-    saveQueue(q);
-    return item;
-  }
-  function queueLength(){
-    return loadQueue().length;
-  }
-
-  let sending = false;
-
-  async function sendOne(item){
-    const url = new URL(API_URL);
-    url.searchParams.set("tipo", item.tipo);
-    url.searchParams.set("codigo", item.codigo);
-    url.searchParams.set("ubicacion", item.ubicacion);
-    url.searchParams.set("notas", item.notas);
-    url.searchParams.set("ts_client", item.ts_client);
-    url.searchParams.set("id", item.id);
-
-    const res = await fetch(url.toString(), { method:"GET", cache:"no-store" });
-    const data = await res.json().catch(()=> ({}));
-    if(!(res.ok && data.ok)) throw new Error("API error");
-  }
-
-  async function flushQueue(){
-    if(sending) return;
-    sending = true;
-
-    try{
-      while(queueLength() > 0){
-        const item = loadQueue()[0];
-        try{
-          await sendOne(item);
-          dequeue();
-          showToast(`Enviado ✓ (pendientes: ${queueLength()})`);
-        }catch(e){
-          showToast(`Pendiente ⏳ (pendientes: ${queueLength()})`);
-          break;
-        }
+      if(errorCodigo){
+        errorCodigo.style.display = (codigo && !codigoValido) ? "block" : "none";
       }
-    } finally {
-      sending = false;
-    }
-  }
 
-  window.addEventListener("online", flushQueue);
-  setInterval(flushQueue, 4000);
-
-  function makeId(){
-    return (Date.now().toString(36) + Math.random().toString(36).slice(2,8)).toUpperCase();
-  }
-
-  async function sendMovement(tipo){
-    const codigo = elCodigo.value.trim();
-    const ubicacion = elUbic.value.trim();
-    const notas = elNotas.value.trim();
-
-    if(!/^\d{10,14}$/.test(codigo)){
-      showToast("Código inválido (10-14 dígitos)");
-      return;
+      btnEntrada.disabled = !(codigoValido && ubicValida);
+      btnSalida.disabled = !codigoValido;
     }
 
-    if(tipo === "ENTRADA" && !/^[A-Za-z0-9]{4}$/.test(ubicacion)){
-      showToast("Ubicación inválida (4 caracteres alfanuméricos)");
-      return;
-    }
-
-    const item = {
-      id: makeId(),
-      tipo,
-      codigo,
-      ubicacion,
-      notas,
-      ts_client: new Date().toISOString()
-    };
-
-    const pending = enqueue(item);
-
-    elCodigo.value = "";
-    elNotas.value = "";
-    elUbic.value = "";
-    elCodigo.focus();
+    elCodigo.addEventListener("input", refreshButtons);
+    elUbic.addEventListener("input", refreshButtons);
+    elNotas.addEventListener("input", refreshButtons);
     refreshButtons();
 
-    showToast(`Guardado local ✓ (pendientes: ${pending})`);
+    // Cola local
+    const QKEY = "movimientos_queue_v1";
 
+    function loadQueue(){
+      try { return JSON.parse(localStorage.getItem(QKEY) || "[]"); }
+      catch { return []; }
+    }
+
+    function saveQueue(q){
+      localStorage.setItem(QKEY, JSON.stringify(q));
+    }
+
+    function enqueue(item){
+      const q = loadQueue();
+      q.push(item);
+      saveQueue(q);
+      return q.length;
+    }
+
+    function dequeue(){
+      const q = loadQueue();
+      const item = q.shift();
+      saveQueue(q);
+      return item;
+    }
+
+    function queueLength(){
+      return loadQueue().length;
+    }
+
+    let sending = false;
+
+    async function sendOne(item){
+      const url = new URL(API_URL);
+      url.searchParams.set("tipo", item.tipo);
+      url.searchParams.set("codigo", item.codigo);
+      url.searchParams.set("ubicacion", item.ubicacion);
+      url.searchParams.set("notas", item.notas);
+      url.searchParams.set("ts_client", item.ts_client);
+      url.searchParams.set("id", item.id);
+
+      const res = await fetch(url.toString(), { method:"GET", cache:"no-store" });
+      const data = await res.json().catch(() => ({}));
+      if(!(res.ok && data.ok)) throw new Error("API error");
+    }
+
+    async function flushQueue(){
+      if(sending) return;
+      sending = true;
+
+      try{
+        while(queueLength() > 0){
+          const item = loadQueue()[0];
+          try{
+            await sendOne(item);
+            dequeue();
+            showToast(`Enviado ✓ (pendientes: ${queueLength()})`);
+          }catch(e){
+            showToast(`Pendiente ⏳ (pendientes: ${queueLength()})`);
+            break;
+          }
+        }
+      } finally {
+        sending = false;
+      }
+    }
+
+    window.addEventListener("online", flushQueue);
+    setInterval(flushQueue, 4000);
+
+    function makeId(){
+      return (Date.now().toString(36) + Math.random().toString(36).slice(2,8)).toUpperCase();
+    }
+
+    async function sendMovement(tipo){
+      const codigo = elCodigo.value.trim();
+      const ubicacion = elUbic.value.trim();
+      const notas = elNotas.value.trim();
+
+      if(!/^\d{10,14}$/.test(codigo)){
+        showToast("Código inválido (10-14 dígitos)");
+        return;
+      }
+
+      if(tipo === "ENTRADA" && !/^[A-Za-z0-9]{4}$/.test(ubicacion)){
+        showToast("Ubicación inválida (4 caracteres alfanuméricos)");
+        return;
+      }
+
+      const item = {
+        id: makeId(),
+        tipo,
+        codigo,
+        ubicacion,
+        notas,
+        ts_client: new Date().toISOString()
+      };
+
+      const pending = enqueue(item);
+
+      elCodigo.value = "";
+      elNotas.value = "";
+      elUbic.value = "";
+      refreshButtons();
+
+      setTimeout(() => {
+        elCodigo.focus();
+      }, 50);
+
+      showToast(`Guardado local ✓ (pendientes: ${pending})`);
+
+      flushQueue();
+    }
+
+    window.sendMovement = sendMovement;
     flushQueue();
-  }
-
-  window.sendMovement = sendMovement;
-  flushQueue();
-</script>
-
-
-  
+  </script>
 </body>
 </html>
