@@ -89,6 +89,33 @@
       resize:vertical;
     }
 
+    .checkbox-field{
+      margin-bottom:18px;
+      display:flex;
+      align-items:center;
+      gap:10px;
+      padding:14px;
+      border:1px solid rgba(0,0,0,.25);
+      border-radius:12px;
+    }
+
+    .checkbox-field input[type="checkbox"]{
+      width:20px;
+      height:20px;
+      margin:0;
+      padding:0;
+      accent-color: var(--ink);
+      cursor:pointer;
+    }
+
+    .checkbox-field label{
+      margin:0;
+      font-size:16px;
+      font-weight:600;
+      opacity:1;
+      cursor:pointer;
+    }
+
     .btn{
       width:100%;
       padding:20px;
@@ -151,6 +178,11 @@
       <input id="ubicacion" placeholder="Lee código de ubicación" autocomplete="off" />
     </div>
 
+    <div class="checkbox-field">
+      <input type="checkbox" id="moverPartidaEntera" />
+      <label for="moverPartidaEntera">¿Mover partida entera?</label>
+    </div>
+
     <div class="field">
       <label>NOTAS (opcional)</label>
       <textarea id="notas" placeholder="Observaciones..."></textarea>
@@ -166,6 +198,7 @@
     const elCodigo = document.getElementById("codigo");
     const elUbic = document.getElementById("ubicacion");
     const elNotas = document.getElementById("notas");
+    const elMoverPartidaEntera = document.getElementById("moverPartidaEntera");
     const btnEntrada = document.getElementById("btnEntrada");
     const btnSalida = document.getElementById("btnSalida");
 
@@ -214,6 +247,7 @@
     elCodigo.addEventListener("input", refreshButtons);
     elUbic.addEventListener("input", refreshButtons);
     elNotas.addEventListener("input", refreshButtons);
+    elMoverPartidaEntera.addEventListener("change", refreshButtons);
     refreshButtons();
 
     // Cola local
@@ -254,6 +288,7 @@
       url.searchParams.set("codigo", item.codigo);
       url.searchParams.set("ubicacion", item.ubicacion);
       url.searchParams.set("notas", item.notas);
+      url.searchParams.set("mover_partida_entera", item.mover_partida_entera ? "SI" : "NO");
       url.searchParams.set("ts_client", item.ts_client);
       url.searchParams.set("id", item.id);
 
@@ -294,6 +329,7 @@
       const codigo = elCodigo.value.trim();
       const ubicacion = elUbic.value.trim();
       const notas = elNotas.value.trim();
+      const moverPartidaEntera = elMoverPartidaEntera.checked;
 
       if(!/^\d{10,14}$/.test(codigo)){
         showToast("Código inválido (10-14 dígitos)");
@@ -311,6 +347,7 @@
         codigo,
         ubicacion,
         notas,
+        mover_partida_entera: moverPartidaEntera,
         ts_client: new Date().toISOString()
       };
 
@@ -319,6 +356,7 @@
       elCodigo.value = "";
       elNotas.value = "";
       elUbic.value = "";
+      elMoverPartidaEntera.checked = false;
       refreshButtons();
 
       setTimeout(() => {
