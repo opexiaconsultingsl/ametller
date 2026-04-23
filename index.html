@@ -245,7 +245,7 @@
   </div>
 
   <script>
-    const API_URL = "https://script.google.com/macros/s/AKfycbwk-o8aVh4Ao6MuWbYHpt_gLqlHiNvpE4grhQtiDCAI3nlVj57vNc2vkIMXXbFVROMbig/exec";
+    const API_URL = "https://script.google.com/macros/s/AKfycbylxFU7hiKRxFsCBlsmDdQhqKg35Fp74oRLEuHAPCYDxhc2L25TASLJwHWHNc4EQzPs/exec";
 
     const elCodigo = document.getElementById("codigo");
     const elUbic = document.getElementById("ubicacion");
@@ -307,7 +307,7 @@
     elMoverPartidaEntera.addEventListener("change", refreshButtons);
     refreshButtons();
 
-    const QKEY = "movimientos_queue_v1";
+    const QKEY = "movimientos_queue_v2";
 
     function loadQueue(){
       try { return JSON.parse(localStorage.getItem(QKEY) || "[]"); }
