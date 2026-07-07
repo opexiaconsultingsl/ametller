@@ -187,6 +187,57 @@
       filter:none;
       box-shadow:none;
     }
+
+    /* AVISO SUPERIOR */
+    .toast{
+      position:fixed;
+      left:50%;
+      top:22px;
+      transform:translateX(-50%);
+      width:calc(100% - 28px);
+      max-width:430px;
+      padding:18px 48px 18px 20px;
+      border:2px solid rgba(0,0,0,.18);
+      border-radius:18px;
+      background:white;
+      box-shadow:0 10px 28px rgba(0,0,0,.22);
+      font-weight:900;
+      font-size:20px;
+      text-align:center;
+      opacity:0;
+      pointer-events:none;
+      transition:opacity .2s ease;
+      z-index:9999;
+    }
+
+    .toast.show{
+      opacity:1;
+      pointer-events:auto;
+    }
+
+    .toast-close{
+      position:absolute;
+      right:14px;
+      top:50%;
+      transform:translateY(-50%);
+      width:28px;
+      height:28px;
+      border:0;
+      border-radius:999px;
+      background:#f1f1f1;
+      color:var(--ink);
+      font-size:20px;
+      font-weight:900;
+      line-height:28px;
+      cursor:pointer;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+    }
+
+    .toast-close:hover{
+      background:#e5e5e5;
+    }
   </style>
 </head>
 
@@ -258,21 +309,38 @@
       elCodigo.focus();
     });
 
+    /* AVISO SUPERIOR CON X */
     const toast = document.createElement("div");
-    toast.style.cssText = `
-      position:fixed; left:50%; bottom:18px; transform:translateX(-50%);
-      padding:10px 14px; border:1px solid rgba(0,0,0,.2); border-radius:999px;
-      background:white; box-shadow:0 8px 20px rgba(0,0,0,.15);
-      font-weight:800; font-size:13px; opacity:0; transition:opacity .15s ease;
-      z-index:9999;
-    `;
+    toast.className = "toast";
+
+    const toastText = document.createElement("div");
+    toastText.id = "toastText";
+
+    const toastClose = document.createElement("button");
+    toastClose.className = "toast-close";
+    toastClose.type = "button";
+    toastClose.innerHTML = "×";
+    toastClose.setAttribute("aria-label", "Cerrar aviso");
+
+    toast.appendChild(toastText);
+    toast.appendChild(toastClose);
     document.body.appendChild(toast);
 
-    function showToast(msg){
-      toast.textContent = msg;
-      toast.style.opacity = "1";
+    function hideToast(){
+      toast.classList.remove("show");
       clearTimeout(showToast._t);
-      showToast._t = setTimeout(() => (toast.style.opacity = "0"), 1200);
+    }
+
+    toastClose.addEventListener("click", hideToast);
+
+    function showToast(msg, duration = 4000){
+      toastText.textContent = msg;
+      toast.classList.add("show");
+
+      clearTimeout(showToast._t);
+      showToast._t = setTimeout(() => {
+        toast.classList.remove("show");
+      }, duration);
     }
 
     function refreshButtons(){
@@ -298,7 +366,7 @@
       el.value = "";
       refreshButtons();
       el.focus();
-      showToast("Campo borrado");
+      showToast("Campo borrado", 1800);
     }
 
     elCodigo.addEventListener("input", refreshButtons);
@@ -350,7 +418,10 @@
 
       const res = await fetch(url.toString(), { method:"GET", cache:"no-store" });
       const data = await res.json().catch(() => ({}));
-      if(!(res.ok && data.ok)) throw new Error("API error");
+
+      if(!(res.ok && data.ok)){
+        throw new Error("API error");
+      }
     }
 
     async function flushQueue(){
@@ -360,12 +431,18 @@
       try{
         while(queueLength() > 0){
           const item = loadQueue()[0];
+
           try{
             await sendOne(item);
             dequeue();
-            showToast(`Enviado ✓ (pendientes: ${queueLength()})`);
+
+            /* MENSAJE SOLO PARA ENTRADAS Y SOLO CUANDO SE ENVÍA BIEN */
+            if(item.tipo === "ENTRADA"){
+              showToast("MOVIMIENTO REGISTRADO CORRECTAMENTE", 8000);
+            }
+
           }catch(e){
-            showToast(`Pendiente ⏳ (pendientes: ${queueLength()})`);
+            showToast(`Pendiente de envío ⏳ (${queueLength()})`, 3000);
             break;
           }
         }
@@ -388,12 +465,12 @@
       const moverPartidaEntera = elMoverPartidaEntera.checked;
 
       if(!/^\d{10,14}$/.test(codigo)){
-        showToast("Código inválido (10-14 dígitos)");
+        showToast("Código inválido (10-14 dígitos)", 3000);
         return;
       }
 
       if(tipo === "ENTRADA" && !/^[A-Za-z0-9]{4}$/.test(ubicacion)){
-        showToast("Ubicación inválida (4 caracteres alfanuméricos)");
+        showToast("Ubicación inválida (4 caracteres alfanuméricos)", 3000);
         return;
       }
 
@@ -407,7 +484,7 @@
         ts_client: new Date().toISOString()
       };
 
-      const pending = enqueue(item);
+      enqueue(item);
 
       elCodigo.value = "";
       elNotas.value = "";
@@ -418,8 +495,6 @@
       setTimeout(() => {
         elCodigo.focus();
       }, 50);
-
-      showToast(`Guardado local ✓ (pendientes: ${pending})`);
 
       flushQueue();
     }
